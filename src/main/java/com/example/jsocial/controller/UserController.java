@@ -3,6 +3,7 @@ package com.example.jsocial.controller;
 import com.example.jsocial.dto.*;
 import com.example.jsocial.model.user.User;
 import com.example.jsocial.security.access.AccessControlService;
+import com.example.jsocial.service.CloudinaryService;
 import com.example.jsocial.service.UserService;
 import com.example.jsocial.service.photo.PhotoService;
 import com.example.jsocial.service.post.PostService;
@@ -16,11 +17,8 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import jakarta.servlet.http.HttpServletRequest;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 @Controller
 @RequestMapping("/users")
@@ -31,14 +29,18 @@ public class UserController {
     private final PhotoService photoService;
     private final PostService postService;
 
+    private final CloudinaryService cloudinaryService;
+
     public UserController(UserService userService,
                           AccessControlService accessControlService,
                           PhotoService photoService,
-                          PostService postService) {
+                          PostService postService,
+                          CloudinaryService cloudinaryService) {
         this.userService = userService;
         this.accessControlService = accessControlService;
         this.photoService = photoService;
         this.postService = postService;
+        this.cloudinaryService = cloudinaryService;
     }
 
     @GetMapping("/{username}")
@@ -93,6 +95,7 @@ public class UserController {
                                 @RequestParam(value = "deleteAvatar", required = false) boolean deleteAvatar,
                                 @AuthenticationPrincipal User currentUser,
                                 Model model) throws IOException {
+
         User user = userService.findByUsername(username);
         if (!accessControlService.canEditUser(user, currentUser)) {
             return "redirect:/access-denied";
@@ -106,25 +109,23 @@ public class UserController {
 
         user.setUsername(newUsername);
 
-        if (deleteAvatar) {
-            Path path = Path.of(System.getProperty("user.dir") + user.getAvatar());
-            Files.deleteIfExists(path);
+        if (deleteAvatar && user.getAvatar() != null) {
+            cloudinaryService.deleteImage(user.getAvatar());
             user.setAvatar(null);
         } else if (!file.isEmpty()) {
-            String uploadDir = System.getProperty("user.dir") + "/uploads/avatars/";
-            Files.createDirectories(Path.of(uploadDir));
-            String fileName = newUsername + "_" + file.getOriginalFilename();
-            Path filePath = Path.of(uploadDir + fileName);
-            file.transferTo(filePath.toFile());
-            user.setAvatar("/uploads/avatars/" + fileName);
+            if (user.getAvatar() != null) {
+                cloudinaryService.deleteImage(user.getAvatar());
+            }
+
+            String secureUrl = cloudinaryService.uploadImage(file, "avatars", newUsername);
+            user.setAvatar(secureUrl);
         }
 
         userService.save(user);
-        // Оновити сесію тільки якщо користувач редагував себе, а  не Адмін
+
         if (username.equals(currentUser.getUsername())) {
-            // Оновлюємо сесію користувача
             UsernamePasswordAuthenticationToken newAuth = new UsernamePasswordAuthenticationToken(
-                    user,  // новий об’єкт User зі зміненим username
+                    user,
                     currentUser.getPassword(),
                     currentUser.getAuthorities()
             );
@@ -133,6 +134,7 @@ public class UserController {
 
         return "redirect:/users/" + newUsername;
     }
+
 
     @PostMapping("/{username}/follow")
     public String followUser(@PathVariable String username, @AuthenticationPrincipal User currentUser) {
