@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="userCards">
+    <div th:each="user : ${results}" class="user-card">
+        <img th:src="${user.avatar != null} ? ${user.avatar} : '/images/default-avatar.png'" alt="Avatar">
+        <a th:href="@{'/users/' + ${user.username}}" th:text="${user.username}"></a>
+    </div>
+</div>
+</body>
+</html>

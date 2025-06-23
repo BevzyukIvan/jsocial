@@ -1,0 +1,16 @@
+<div xmlns:th="http://www.thymeleaf.org"
+     xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+     class="topbar"
+     th:fragment="topbar">
+  <div sec:authorize="isAuthenticated()">
+    <img th:src="${#authentication.principal.avatar != null ? #authentication.principal.avatar : '/images/default-avatar.png'}"
+         alt="avatar" class="avatar">
+    <a th:href="@{'/users/' + ${#authentication.name}}" class="username" th:text="${#authentication.name}"></a>
+    <a href="/logout" class="btn btn-sm btn-outline-danger">Вийти</a>
+  </div>
+
+  <div sec:authorize="!isAuthenticated()">
+    <a href="/login" class="btn btn-sm btn-outline-primary">Увійти</a>
+    <a href="/register" class="btn btn-sm btn-primary">Реєстрація</a>
+  </div>
+</div>

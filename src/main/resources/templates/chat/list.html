@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <title>Чати – JSocial</title>
+
+  <!-- viewport -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bootstrap & Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+  <link rel="stylesheet" th:href="@{/css/layout.css}" />
+
+  <style>
+    /* ===== CHAT CARD ===== */
+    .chat-card{border:1px solid #ddd;border-radius:8px;padding:10px;margin-bottom:12px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:background .2s;}
+    .chat-card:hover{background:#f8f9fa;}
+    .chat-avatar{width:48px;height:48px;border-radius:50%;object-fit:cover;}
+    .chat-info{flex-grow:1;}
+    .chat-title{font-weight:600;margin:0;}
+    .chat-preview{font-size:.9em;color:#666;}
+
+    /* ===== LAYOUT ===== */
+    .main-content{margin-left:240px;padding:40px 0;}
+
+    @media(max-width:991.98px){
+      .topbar{display:none!important;}
+      .mobile-topbar{display:flex!important;}
+      .main-content{margin-left:0;padding-top:52px;}
+      .container{padding:0 12px;}
+
+      .mobile-topbar{position:fixed;top:0;left:0;width:100%;height:52px;background:#fff;border-bottom:1px solid #dbdbdb;z-index:1050;padding:0 8px;}
+      #sidebarToggle{border:none;background:transparent;padding:6px 8px;}
+      .mobile-avatar{width:28px;height:28px;border-radius:50%;object-fit:cover;}
+
+      .sidebar{position:fixed;top:0;bottom:0;left:0;width:240px;transform:translateX(-100%);transition:transform .3s ease;z-index:1040;background:#fff;overflow-y:auto;box-shadow:2px 0 6px rgba(0,0,0,.08);}
+      .sidebar.show{transform:translateX(0);}
+      #sidebarOverlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;z-index:1030;}
+      #sidebarOverlay.show{display:block;}
+    }
+  </style>
+</head>
+<body>
+<!-- SIDEBAR -->
+<div th:replace="fragments/sidebar :: sidebar_by_tab('chats')" class="sidebar"></div>
+<!-- DESKTOP TOPBAR -->
+<div th:replace="fragments/topbar :: topbar" class="topbar d-none d-lg-block"></div>
+<!-- MOBILE TOPBAR -->
+<div class="mobile-topbar d-none d-lg-none align-items-center justify-content-between">
+  <div class="d-flex align-items-center gap-2">
+    <button id="sidebarToggle" aria-label="Меню">
+      <i class="bi bi-list fs-3"></i>
+    </button>
+    <span class="fw-bold">JSocial</span>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <th:block th:if="${currentUser == null}">
+      <a th:href="@{/login}" class="btn btn-sm btn-outline-primary">Увійти</a>
+      <a th:href="@{/register}" class="btn btn-sm btn-primary">Реєстрація</a>
+    </th:block>
+    <th:block th:if="${currentUser != null}">
+      <a th:href="@{'/users/' + ${currentUser.username}}" class="d-flex align-items-center text-decoration-none">
+        <img th:src="${currentUser.avatar != null ? currentUser.avatar : '/images/default-avatar.png'}"
+             alt="avatar" class="mobile-avatar">
+        <span class="ms-1 fw-bold text-dark" th:text="${currentUser.username}"></span>
+      </a>
+      <form th:action="@{/logout}" method="post" class="m-0">
+        <button type="submit" class="btn btn-sm btn-outline-danger">Вийти</button>
+      </form>
+    </th:block>
+  </div>
+</div>
+<!-- overlay -->
+<div id="sidebarOverlay"></div>
+
+<!-- MAIN CONTENT -->
+<div class="main-content">
+  <div class="container">
+    <h3 class="mb-4">Ваші чати</h3>
+
+    <div th:if="${chatViews.isEmpty()}"><p>У вас ще немає жодного чату.</p></div>
+
+    <div id="chat-list">
+      <div th:each="chat : ${chatViews}" class="chat-card" th:attr="data-chat-id=${chat.chatId}" th:onclick="'window.location.href=\'/chats/' + ${chat.chatId} + '\''">
+        <img class="chat-avatar" th:src="${chat.displayAvatar != null} ? ${chat.displayAvatar} : '/images/default-group-avatar.png'" alt="Avatar">
+        <div class="chat-info">
+          <p class="chat-title" th:text="${chat.displayName}"></p>
+          <p class="chat-preview" th:text="${chat.lastMessage}" th:attr="id='preview-' + ${chat.chatId}"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SockJS / STOMP -->
+<script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+<script th:inline="javascript">
+  const sb=document.querySelector('.sidebar');
+  const tg=document.getElementById('sidebarToggle');
+  const ov=document.getElementById('sidebarOverlay');
+  const close=()=>{sb.classList.remove('show');ov.classList.remove('show');document.body.classList.remove('overflow-hidden');};
+  if(tg)tg.addEventListener('click',()=>{sb.classList.toggle('show');ov.classList.toggle('show');document.body.classList.toggle('overflow-hidden',sb.classList.contains('show'));});
+  if(ov)ov.addEventListener('click',close);
+
+  // ===== Live preview =====
+  const socket=new SockJS('/ws');
+  const stomp=Stomp.over(socket);
+  const chatIds=/*[[${chatViews.![chatId]}]]*/ [];
+  stomp.connect({},()=>{
+    chatIds.forEach(id=>{
+      stomp.subscribe(`/topic/chats/preview/${id}`,msg=>{
+        const text=msg.body;
+        const card=document.querySelector(`[data-chat-id='${id}']`);
+        if(card){
+          const preview=card.querySelector('.chat-preview');
+          if(preview)preview.textContent=text;
+          const list=document.getElementById('chat-list');
+          list.removeChild(card);
+          list.prepend(card);
+        }
+      });
+    });
+  });
+</script>
+
+</body>
+</html>

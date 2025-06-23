@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="feedItems">
+    <div th:each="item : ${feedItems}" class="photo-card">
+        <div class="post-header">
+            <img th:src="${item.avatar != null} ? ${item.avatar} : '/images/default-avatar.png'"
+                 alt="Avatar" class="avatar">
+            <a th:href="@{'/users/' + ${item.username}}" class="text-dark fw-bold text-decoration-none"
+               th:text="${item.username}"></a>
+        </div>
+
+        <a th:if="${item.type.name() == 'PHOTO'}" th:href="@{'/photos/' + ${item.id}}" class="d-block post-image-wrapper">
+            <img th:src="${item.imageUrl}" alt="Фото">
+        </a>
+
+        <a th:if="${item.type.name() == 'POST'}" th:href="@{'/posts/' + ${item.id}}" class="text-decoration-none">
+            <div class="post-meta">
+                <strong th:text="${item.username}"></strong>
+                <span th:if="${item.content}" th:text="' ' + ${item.content}"></span>
+                <div class="text-muted mt-1"
+                     th:text="${#temporals.format(item.createdAt, 'dd.MM.yyyy HH:mm')}"></div>
+                <div th:if="${item.edited}">
+                    <small class="text-muted fst-italic ms-1">(відредаговано)</small>
+                </div>
+            </div>
+        </a>
+
+        <div th:if="${item.type.name() == 'PHOTO'}" class="post-meta">
+            <strong th:text="${item.username}"></strong>
+            <span th:if="${item.content}" th:text="' ' + ${item.content}"></span>
+            <div class="text-muted mt-1"
+                 th:text="${#temporals.format(item.createdAt, 'dd.MM.yyyy HH:mm')}"></div>
+        </div>
+
+        <div th:if="${#authentication.name == item.username or #authorization.expression('hasRole(''ROLE_ADMIN'')')}">
+            <button type="button"
+                    class="btn btn-sm btn-outline-danger btn-delete delete-btn-wrapper"
+                    th:attr="data-delete-id=${item.id}, data-type=${item.type.name().toLowerCase()}">
+                Видалити
+            </button>
+        </div>
+    </div>
+</div>
+</body>
+</html>

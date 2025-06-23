@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<th:block th:fragment="photosFragment">
+    <th:block th:each="photo : ${photos}">
+        <div class="photo-card" th:data-id="${photo.id}">
+            <a th:href="@{'/photos/' + ${photo.id}}">
+                <img th:src="${photo.url}" alt="Фото" class="w-100"/>
+            </a>
+
+            <!-- кнопка для власника або адміна -->
+            <button
+                    th:if="${user.isMe or #authorization.expression('hasRole(''ADMIN'')')}"
+                    type="button"
+                    class="btn btn-sm btn-outline-danger delete-overlay"
+                    th:attr="data-delete-id=${photo.id}"
+                    data-type="photo"
+                    title="Видалити">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+    </th:block>
+</th:block>
+
+</body>
+</html>

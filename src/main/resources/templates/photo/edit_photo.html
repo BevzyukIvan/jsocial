@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Редагування фото – JSocial</title>
+
+    <!-- viewport -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- Bootstrap & Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <link rel="stylesheet" th:href="@{/css/layout.css}" />
+
+    <style>
+        /* ===== COMMON ===== */
+        .main-content{margin-left:240px;padding:40px 0;}
+        .edit-wrapper{max-width:600px;margin:0 auto;}
+        textarea{resize:vertical;}
+
+        /* ===== MOBILE <992px ===== */
+        @media(max-width:991.98px){
+            .topbar{display:none!important;}
+            .mobile-topbar{display:flex!important;}
+            .main-content{margin-left:0;padding-top:52px;}
+            .container{padding:0 12px;} /* невеликий горизонтальний відступ */
+
+            /* fixed mobile topbar */
+            .mobile-topbar{position:fixed;top:0;left:0;width:100%;height:52px;background:#fff;border-bottom:1px solid #dbdbdb;z-index:1050;padding:0 8px;}
+            #sidebarToggle{border:none;background:transparent;padding:6px 8px;}
+            .mobile-avatar{width:28px;height:28px;border-radius:50%;object-fit:cover;}
+
+            /* sidebar sheet */
+            .sidebar{position:fixed;top:0;bottom:0;left:0;width:240px;transform:translateX(-100%);transition:transform .3s ease;z-index:1040;background:#fff;overflow-y:auto;box-shadow:2px 0 6px rgba(0,0,0,.08);}
+            .sidebar.show{transform:translateX(0);}
+            #sidebarOverlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;z-index:1030;}
+            #sidebarOverlay.show{display:block;}
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+<!-- SIDEBAR -->
+<div th:replace="fragments/sidebar :: sidebar_plain" class="sidebar"></div>
+
+<!-- DESKTOP TOPBAR -->
+<div th:replace="fragments/topbar :: topbar" class="topbar d-none d-lg-block"></div>
+
+<!-- MOBILE TOPBAR -->
+<div class="mobile-topbar d-none d-lg-none align-items-center">
+    <button id="sidebarToggle" aria-label="Меню"><i class="bi bi-list fs-3"></i></button>
+    <span class="ms-2 fw-bold">JSocial</span>
+</div>
+<!-- overlay -->
+<div id="sidebarOverlay"></div>
+
+<!-- MAIN -->
+<div class="main-content">
+    <div class="container edit-wrapper">
+        <h2 class="mb-4 text-center">Редагування опису</h2>
+
+        <form th:action="@{'/photos/' + ${photoForm.id} + '/edit'}" th:object="${photoForm}" method="post" novalidate>
+            <div class="mb-3">
+                <label for="description" class="form-label">Опис</label>
+                <textarea id="description" th:field="*{description}" class="form-control" rows="4" placeholder="Додайте опис..."></textarea>
+                <div class="text-danger mt-1" th:if="${#fields.hasErrors('description')}" th:errors="*{description}"></div>
+            </div>
+
+            <div class="d-flex gap-2 justify-content-end">
+                <button type="submit" class="btn btn-primary">Зберегти</button>
+                <a th:href="@{'/photos/' + ${photoForm.id}}" class="btn btn-secondary">Скасувати</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- JS sidebar toggle -->
+<script th:inline="javascript">
+    const sb=document.querySelector('.sidebar');
+    const tg=document.getElementById('sidebarToggle');
+    const ov=document.getElementById('sidebarOverlay');
+    const close=()=>{sb.classList.remove('show');ov.classList.remove('show');document.body.classList.remove('overflow-hidden');};
+    if(tg)tg.addEventListener('click',()=>{sb.classList.toggle('show');ov.classList.toggle('show');document.body.classList.toggle('overflow-hidden',sb.classList.contains('show'));});
+    if(ov)ov.addEventListener('click',close);
+</script>
+</body>
+</html>

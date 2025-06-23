@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="userListFragment (userItems)">
+    <li class="list-group-item" th:each="userItem : ${userItems}">
+        <div class="user-entry">
+            <img th:src="${userItem.avatar != null ? userItem.avatar : '/images/default-avatar.png'}" alt="avatar">
+            <a th:href="@{'/users/' + ${userItem.username}}" th:text="${userItem.username}"></a>
+        </div>
+    </li>
+</div>
+</body>
+</html>

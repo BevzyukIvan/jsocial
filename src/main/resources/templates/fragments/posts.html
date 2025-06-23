@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<th:block th:fragment="postsFragment">
+  <th:block th:each="post : ${posts}">
+    <div class="post-card card mb-3" th:data-id="${post.id}">
+      <div class="card-body">
+        <a th:href="@{'/posts/' + ${post.id}}"
+           class="text-decoration-none text-dark">
+          <p th:text="${post.content}" class="card-text mb-1"></p>
+        </a>
+        <small class="text-muted"
+               th:text="${#temporals.format(post.createdAt, 'dd.MM.yyyy HH:mm')}"></small>
+        <small th:if="${post.edited}"
+               class="text-muted fst-italic ms-2">(відредаговано)</small>
+      </div>
+
+      <button
+              th:if="${user.isMe or #authorization.expression('hasRole(''ADMIN'')')}"
+              type="button"
+              class="btn btn-sm btn-outline-danger delete-overlay"
+              th:attr="data-delete-id=${post.id}"
+              data-type="post"
+              title="Видалити">
+        <i class="bi bi-trash"></i>
+      </button>
+    </div>
+  </th:block>
+</th:block>
+
+</body>
+</html>
