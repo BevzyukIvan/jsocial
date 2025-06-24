@@ -303,18 +303,46 @@
     loading = false;
   };
 
+  const enableLongPressDelete = () => {
+    const msgs = document.querySelectorAll('.message.me');
+    msgs.forEach(msg => {
+      let pressTimer;
+
+      msg.addEventListener('touchstart', e => {
+        pressTimer = setTimeout(() => {
+          msg.classList.add('show-delete');
+        }, 500);
+      });
+
+      msg.addEventListener('touchend', e => {
+        clearTimeout(pressTimer);
+      });
+
+      msg.addEventListener('touchmove', e => {
+        clearTimeout(pressTimer);
+      });
+
+      msg.addEventListener('click', e => {
+        msg.classList.remove('show-delete');
+      });
+    });
+  };
+
+
   const prepend = list => {
     const box = document.getElementById('messages');
     const oldH = box.scrollHeight, oldT = box.scrollTop;
     const frag = document.createDocumentFragment();
     list.forEach(m => frag.prepend(buildMsg(m)));
     box.prepend(frag);
+    enableLongPressDelete();
     box.scrollTop = box.scrollHeight - oldH + oldT;
   };
 
   const append = m => {
     const box = document.getElementById('messages');
     box.appendChild(buildMsg(m));
+    enableLongPressDelete();
     box.scrollTop = box.scrollHeight;
   };
 
