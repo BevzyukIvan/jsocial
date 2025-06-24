@@ -44,8 +44,10 @@
 <body>
 <!-- SIDEBAR -->
 <div th:replace="fragments/sidebar :: sidebar_by_tab('chats')" class="sidebar"></div>
+
 <!-- DESKTOP TOPBAR -->
 <div th:replace="fragments/topbar :: topbar" class="topbar d-none d-lg-block"></div>
+
 <!-- MOBILE TOPBAR -->
 <div class="mobile-topbar d-none d-lg-none align-items-center justify-content-between">
   <div class="d-flex align-items-center gap-2">
@@ -60,7 +62,8 @@
       <a th:href="@{/register}" class="btn btn-sm btn-primary">Реєстрація</a>
     </th:block>
     <th:block th:if="${currentUser != null}">
-      <a th:href="@{'/users/' + ${currentUser.username}}" class="d-flex align-items-center text-decoration-none">
+      <a th:href="@{'/users/' + ${currentUser.username}}"
+         class="d-flex align-items-center text-decoration-none">
         <img th:src="${currentUser.avatar != null ? currentUser.avatar : '/images/default-avatar.png'}"
              alt="avatar" class="mobile-avatar">
         <span class="ms-1 fw-bold text-dark" th:text="${currentUser.username}"></span>
@@ -71,6 +74,7 @@
     </th:block>
   </div>
 </div>
+
 <!-- overlay -->
 <div id="sidebarOverlay"></div>
 
@@ -79,14 +83,22 @@
   <div class="container">
     <h3 class="mb-4">Ваші чати</h3>
 
-    <div th:if="${chatViews.isEmpty()}"><p>У вас ще немає жодного чату.</p></div>
+    <div th:if="${chatViews.isEmpty()}">
+      <p>У вас ще немає жодного чату.</p>
+    </div>
 
     <div id="chat-list">
-      <div th:each="chat : ${chatViews}" class="chat-card" th:attr="data-chat-id=${chat.chatId}" th:onclick="'window.location.href=\'/chats/' + ${chat.chatId} + '\''">
-        <img class="chat-avatar" th:src="${chat.displayAvatar != null} ? ${chat.displayAvatar} : '/images/default-group-avatar.png'" alt="Avatar">
+      <div th:each="chat : ${chatViews}"
+           class="chat-card"
+           th:data-chat-id="${chat.chatId}"
+           th:data-last-at="${#temporals.format(chat.lastSentAt, 'yyyy-MM-dd''T''HH:mm:ss')}"
+           th:onclick="|window.location.href='/chats/${chat.chatId}'|">
+        <img class="chat-avatar"
+             th:src="${chat.displayAvatar != null ? chat.displayAvatar : '/images/default-group-avatar.png'}"
+             alt="Avatar">
         <div class="chat-info">
           <p class="chat-title" th:text="${chat.displayName}"></p>
-          <p class="chat-preview" th:text="${chat.lastMessage}" th:attr="id='preview-' + ${chat.chatId}"></p>
+          <p class="chat-preview" th:text="${chat.lastMessage}"></p>
         </div>
       </div>
     </div>
@@ -97,33 +109,61 @@
 <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
 <script th:inline="javascript">
-  const sb=document.querySelector('.sidebar');
-  const tg=document.getElementById('sidebarToggle');
-  const ov=document.getElementById('sidebarOverlay');
-  const close=()=>{sb.classList.remove('show');ov.classList.remove('show');document.body.classList.remove('overflow-hidden');};
-  if(tg)tg.addEventListener('click',()=>{sb.classList.toggle('show');ov.classList.toggle('show');document.body.classList.toggle('overflow-hidden',sb.classList.contains('show'));});
-  if(ov)ov.addEventListener('click',close);
+  const sb = document.querySelector('.sidebar');
+  const tg = document.getElementById('sidebarToggle');
+  const ov = document.getElementById('sidebarOverlay');
+  const closeSidebar = () => {
+    sb.classList.remove('show');
+    ov.classList.remove('show');
+    document.body.classList.remove('overflow-hidden');
+  };
+  if (tg) tg.addEventListener('click', () => {
+    sb.classList.toggle('show');
+    ov.classList.toggle('show');
+    document.body.classList.toggle('overflow-hidden', sb.classList.contains('show'));
+  });
+  if (ov) ov.addEventListener('click', closeSidebar);
 
-  // ===== Live preview =====
-  const socket=new SockJS('/ws');
-  const stomp=Stomp.over(socket);
-  const chatIds=/*[[${chatViews.![chatId]}]]*/ [];
-  stomp.connect({},()=>{
-    chatIds.forEach(id=>{
-      stomp.subscribe(`/topic/chats/preview/${id}`,msg=>{
-        const text=msg.body;
-        const card=document.querySelector(`[data-chat-id='${id}']`);
-        if(card){
-          const preview=card.querySelector('.chat-preview');
-          if(preview)preview.textContent=text;
-          const list=document.getElementById('chat-list');
-          list.removeChild(card);
-          list.prepend(card);
-        }
+  // Helper: sort chat cards by most recent
+  function sortChats() {
+    const list = document.getElementById('chat-list');
+    Array.from(list.children)
+            .sort((a, b) => new Date(b.dataset.lastAt) - new Date(a.dataset.lastAt))
+            .forEach(c => list.appendChild(c));
+  }
+
+  // WebSocket live updates
+  const socket = new SockJS('/ws');
+  const stomp = Stomp.over(socket);
+  const chatIds = /*[[${chatViews.![chatId]}]]*/ [];
+
+  stomp.connect({}, () => {
+    chatIds.forEach(id => {
+      // 1) Підписка на превʼю (нові повідомлення)
+      stomp.subscribe(`/topic/chats/preview/${id}`, msg => {
+        const dto = JSON.parse(msg.body);
+        const card = document.querySelector(`[data-chat-id='${id}']`);
+        if (!card) return;
+        // Оновлюємо текст превʼю
+        card.querySelector('.chat-preview').textContent = dto.content;
+        // Оновлюємо таймстемп для сортування
+        card.dataset.lastAt = dto.sentAt;
+        // Пересортувати список за новим lastAt
+        sortChats();
+      });
+
+      // 2) Підписка на видалення порожніх чатів
+      stomp.subscribe(`/topic/chats/remove/${id}`, msg => {
+        const removedId = +msg.body;
+        const card = document.querySelector(`[data-chat-id='${removedId}']`);
+        if (card) card.remove();
       });
     });
   });
-</script>
 
+
+  // initial sort
+  sortChats();
+</script>
 </body>
 </html>

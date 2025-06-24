@@ -249,24 +249,10 @@
 <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
 <script>
-  const chatId = [[${chat.id}]];
+  const chatId      = [[${chat.id}]];
   const currentUser = '[[${currentUser.username}]]';
-  const avatar = '[[${currentUser.avatar}]]';
-  const isGroup = [[${chat.group}]];
-
-  const sb = document.querySelector('.sidebar');
-  const ov = document.getElementById('sidebarOverlay');
-  const tg = document.getElementById('sidebarToggle');
-  const toggleSidebar = () => {
-    sb.classList.toggle('show');
-    ov.classList.toggle('show');
-    document.body.classList.toggle('overflow-hidden', sb.classList.contains('show'));
-  };
-  tg && tg.addEventListener('click', toggleSidebar);
-  ov && ov.addEventListener('click', toggleSidebar);
-
-  const socket = new SockJS('/ws');
-  const stompClient = Stomp.over(socket);
+  const avatar      = '[[${currentUser.avatar}]]';
+  const isGroup     = [[${chat.group}]];
 
   const fmt = iso => {
     const d = new Date(iso);
@@ -277,6 +263,7 @@
     const mine = m.username === currentUser;
     const d = document.createElement('div');
     d.className = 'message ' + (mine ? 'me' : 'other');
+    d.setAttribute('data-id', m.id);  // <-- додаємо атрибут для видалення
     d.innerHTML =
             (isGroup && !mine ? `<strong>${m.username}</strong><br>` : '') +
             `<span>${m.content}</span>` +
@@ -291,44 +278,28 @@
     btn.addEventListener('click', async e => {
       e.stopPropagation();
       if (!confirm('Видалити повідомлення?')) return;
-      const r = await fetch(`/api/chats/messages/${id}`, {
+      const res = await fetch(`/api/chats/messages/${id}`, {
         method: 'DELETE',
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        headers: {'X-Requested-With':'XMLHttpRequest'}
       });
-      r.ok ? div.remove() : alert('Не вдалося видалити.');
+      if (!res.ok) {
+        alert('Не вдалося видалити.');
+      }
     });
-
-    let t;
-    div.addEventListener('touchstart', () => {
-      t = setTimeout(() => {
-        div.classList.add('show-delete');
-        setTimeout(() => div.classList.remove('show-delete'), 4000);
-      }, 600);
-    });
-    ['touchend', 'touchmove', 'touchcancel'].forEach(ev =>
-            div.addEventListener(ev, () => clearTimeout(t))
-    );
-    div.addEventListener('click', () => div.classList.remove('show-delete'));
   };
 
   let page = 0, reached = false, loading = false;
-
   const load = async () => {
     if (loading || reached) return;
     loading = true;
-
     const r = await fetch(`/api/chats/${chatId}/messages?page=${page}`, {
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      headers: {'X-Requested-With':'XMLHttpRequest'}
     });
-
     if (r.ok) {
-      const a = await r.json();
-      a.length ? (prepend(a), ++page) : reached = true;
-    } else if (r.status === 401) {
-      alert('Сесія завершилась');
-      location = '/login';
+      const arr = await r.json();
+      if (arr.length) { prepend(arr); page++; }
+      else reached = true;
     }
-
     loading = false;
   };
 
@@ -347,53 +318,52 @@
     box.scrollTop = box.scrollHeight;
   };
 
-  const vv = window.visualViewport;
-  let kbTimer;
-  const applyKb = () => {
-    const diff = Math.max(0, window.innerHeight - vv.height);
-    const form = document.getElementById('messageForm');
-    const box = document.getElementById('messages');
-    form.style.bottom = diff + 'px';
-    box.style.paddingBottom = (80 + diff) + 'px';
-  };
-  const scheduleKb = () => {
-    clearTimeout(kbTimer);
-    kbTimer = setTimeout(applyKb, 60);
-  };
-
   document.addEventListener('DOMContentLoaded', () => {
+    // sidebar toggle
+    const sb = document.querySelector('.sidebar');
+    const ov = document.getElementById('sidebarOverlay');
+    const tg = document.getElementById('sidebarToggle');
+    const toggleSidebar = () => {
+      sb.classList.toggle('show');
+      ov.classList.toggle('show');
+      document.body.classList.toggle('overflow-hidden', sb.classList.contains('show'));
+    };
+    tg && tg.addEventListener('click', toggleSidebar);
+    ov && ov.addEventListener('click', toggleSidebar);
+
+    // initial load & infinite scroll
     const box = document.getElementById('messages');
-    box.addEventListener('scroll', () => {
-      if (box.scrollTop === 0) load();
-    });
+    box.addEventListener('scroll', () => { if (box.scrollTop === 0) load(); });
     load();
 
+    // WebSocket subscriptions
+    const socket = new SockJS('/ws');
+    const stompClient = Stomp.over(socket);
     stompClient.connect({}, () => {
+      // нове повідомлення
       stompClient.subscribe(`/topic/chats/${chatId}`, m => append(JSON.parse(m.body)));
+
+      // видалення повідомлення
+      stompClient.subscribe(`/topic/chats/${chatId}/delete`, m => {
+        const deletedId = +m.body;
+        const msgDiv = document.querySelector(`.message[data-id='${deletedId}']`);
+        if (msgDiv) msgDiv.remove();
+      });
     });
 
+    // send message
     const form = document.getElementById('messageForm');
-    const inp = document.getElementById('messageInput');
+    const inp  = document.getElementById('messageInput');
     form.addEventListener('submit', e => {
       e.preventDefault();
       const txt = inp.value.trim();
       if (!txt) return;
-      const msg = {
-        chatId,
-        content: txt,
-        username: currentUser,
-        avatar,
-        sentAt: new Date().toISOString()
-      };
-      stompClient.send('/app/chat.sendMessage', {}, JSON.stringify(msg));
+      stompClient.send('/app/chat.sendMessage', {}, JSON.stringify({
+        chatId, content: txt, username: currentUser,
+        avatar, sentAt: new Date().toISOString()
+      }));
       inp.value = '';
-      requestAnimationFrame(() => box.scrollTop = box.scrollHeight);
     });
-
-    if (vv) {
-      scheduleKb();
-      vv.addEventListener('resize', scheduleKb);
-    }
   });
 </script>
 </body>

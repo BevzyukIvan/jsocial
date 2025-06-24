@@ -66,7 +66,7 @@
 
             <div class="d-flex gap-2 justify-content-end">
                 <button type="submit" class="btn btn-primary">Опублікувати</button>
-                <a th:href="@{/}" class="btn btn-secondary">Скасувати</a>
+                <a th:href="@{'/users/' + ${currentUser.username} + '?tab=posts'}" class="btn btn-secondary">Скасувати</a>
             </div>
         </form>
     </div>

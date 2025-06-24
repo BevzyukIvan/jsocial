@@ -20,23 +20,29 @@ public class ChatViewMapper {
 
         if (chat.isGroup()) {
             dto.setDisplayName(chat.getName());
-            dto.setDisplayAvatar(chat.getAvatar() != null
-                    ? chat.getAvatar()
-                    : "/images/group-default.png");
+            dto.setDisplayAvatar(
+                    chat.getAvatar() != null
+                            ? chat.getAvatar()
+                            : "/images/group-default.png"
+            );
         } else {
             User other = chat.getParticipants().stream()
                     .filter(u -> !u.getUsername().equals(currentUsername))
                     .findFirst()
                     .orElseThrow();
             dto.setDisplayName(other.getUsername());
-            dto.setDisplayAvatar(other.getAvatar() != null
-                    ? other.getAvatar()
-                    : "/images/default-avatar.png");
+            dto.setDisplayAvatar(
+                    other.getAvatar() != null
+                            ? other.getAvatar()
+                            : "/images/default-avatar.png"
+            );
         }
 
         messageService.getLastMessageDTO(chat.getId())
-                .map(MessageDTO::getContent)
-                .ifPresent(dto::setLastMessage);
+                .ifPresent(last -> {
+                    dto.setLastMessage(last.getContent());
+                    dto.setLastSentAt(last.getSentAt());
+                });
 
         return dto;
     }

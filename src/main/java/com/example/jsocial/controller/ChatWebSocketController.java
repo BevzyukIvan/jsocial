@@ -54,6 +54,6 @@ public class ChatWebSocketController {
         messagingTemplate.convertAndSend("/topic/chats/" + chat.getId(), outgoing);
 
         // Додатково: сигнал для оновлення списку чатів (можна використати для оновлення превʼю)
-        messagingTemplate.convertAndSend("/topic/chats/preview/" + chat.getId(), dto.getContent());
+        messagingTemplate.convertAndSend("/topic/chats/preview/" + chat.getId(), outgoing);
     }
 }
